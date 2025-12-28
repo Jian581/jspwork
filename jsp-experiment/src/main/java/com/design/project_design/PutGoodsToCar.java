@@ -1,103 +1,101 @@
 package com.design.project_design;
 
-import javax.servlet.RequestDispatcher;
-import javax.servlet.ServletConfig;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-// 注意：不要改 java.sql.* 或 javax.naming.*，只改 servlet 相关的
+import javax.servlet.*;
+import javax.servlet.http.*;
+import java.io.*;
+import java.sql.*;
 import javax.naming.Context;
 import javax.naming.InitialContext;
-import javax.naming.NamingException;
-import javax.servlet.http.HttpSession;
 import javax.sql.DataSource;
-import java.io.IOException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 
 public class PutGoodsToCar extends HttpServlet {
-    public void init(ServletConfig config) throws ServletException {
-        super.init(config);
-    }
-
-    public void service(HttpServletRequest request,
-                        HttpServletResponse response)
+    public void service(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         request.setCharacterEncoding("utf-8");
-        Connection con = null;
-        PreparedStatement pre = null; //预处理语句
-        ResultSet rs;
-        String mobileID = request.getParameter("mobileID");
-        Login loginBean = null;
-        HttpSession session = request.getSession(true);
-        try {
-            loginBean = (Login) session.getAttribute("loginBean");
-            if (loginBean == null) {
-                response.sendRedirect("login.jsp"); //重定向到登录页面
-                return;
-            } else {
-                boolean b = loginBean.getLogname() == null ||
-                        loginBean.getLogname().isEmpty();
-                if (b) {
-                    response.sendRedirect("login.jsp"); //重定向到登录页面
-                    return;
-                }
-            }
-        } catch (Exception exp) {
-            response.sendRedirect("login.jsp"); //重定向到登录页面
+
+        // 1. 检查登录
+        HttpSession session = request.getSession();
+        Login loginBean = (Login) session.getAttribute("loginBean");
+        if (loginBean == null || loginBean.getLogname() == null) {
+            response.sendRedirect("login.jsp");
             return;
         }
+
+        String mobileID = request.getParameter("mobileID");
+        String logname = loginBean.getLogname();
+
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+
         try {
             Context context = new InitialContext();
             Context contextNeeded = (Context) context.lookup("java:comp/env");
-            DataSource ds =
-                    (DataSource) contextNeeded.lookup("mobileConn"); //获得连接池
-            con = ds.getConnection(); //使用连接池中的连接
-            String queryMobileForm =
-                    "select * from mobileForm where mobile_version = ?"; //查询商品表
-            String queryShoppingForm =
-                    "select goodsAmount from shoppingForm where goodsId = ?"; //购物车表
-            String updateSQL =
-                    "update shoppingForm set goodsAmount = ? where goodsId = ?"; //更新
-            String insertSQL =
-                    "insert into shoppingForm values(?,?,?,?,?)"; //添加到购物车
-            pre = con.prepareStatement(queryShoppingForm);
-            pre.setString(1, mobileID);
-            rs = pre.executeQuery();
-            if (rs.next()) { //该货物已经在购物车中
-                int amount = rs.getInt(1);
-                amount++;
-                pre = con.prepareStatement(updateSQL);
-                pre.setInt(1, amount);
-                pre.setString(2, mobileID);
-                pre.executeUpdate(); //更新购物车中该货物的数量
-            } else { //向购物车添加商品
-                pre = con.prepareStatement(queryMobileForm);
-                pre.setString(1, mobileID);
-                rs = pre.executeQuery();
-                if (rs.next()) {
-                    pre = con.prepareStatement(insertSQL);
-                    pre.setString(1, rs.getString("mobile_version"));
-                    pre.setString(2, loginBean.getLogname());
-                    pre.setString(3, rs.getString("mobile_name"));
-                    pre.setFloat(4, rs.getFloat("mobile_price"));
-                    pre.setInt(5, 1); //向购物车中添加该货物
-                    pre.executeUpdate();
-                }
+            DataSource ds = (DataSource) contextNeeded.lookup("mobileConn");
+            con = ds.getConnection();
+
+            // 2. 先查询该商品的信息（价格、名称）
+            String sqlInfo = "SELECT mobile_name, mobile_price FROM mobileForm WHERE mobile_version = ?";
+            pstmt = con.prepareStatement(sqlInfo);
+            pstmt.setString(1, mobileID);
+            rs = pstmt.executeQuery();
+
+            String goodsName = "";
+            float goodsPrice = 0;
+
+            if (rs.next()) {
+                goodsName = rs.getString(1);
+                goodsPrice = rs.getFloat(2);
+            } else {
+                // 商品不存在
+                response.sendRedirect("index.jsp");
+                return;
             }
-            con.close();
-            response.sendRedirect("lookShoppingCar.jsp"); //查看购物车
-        } catch (SQLException exp) {
-            response.getWriter().print("" + exp);
-        } catch (NamingException exp) {
+            rs.close();
+            pstmt.close();
+
+            // 3. 检查购物车里是否已经有该用户的该商品
+            String sqlCheck = "SELECT * FROM shoppingForm WHERE logname = ? AND goodsId = ?";
+            pstmt = con.prepareStatement(sqlCheck);
+            pstmt.setString(1, logname);
+            pstmt.setString(2, mobileID);
+            rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                // A. 如果有，更新数量 (数量 + 1)
+                // 注意：这里需要确保你的 shoppingForm 表里有 goodsAmount 字段
+                String sqlUpdate = "UPDATE shoppingForm SET goodsAmount = goodsAmount + 1 WHERE logname = ? AND goodsId = ?";
+                // 关闭之前的 ResultSet 和 Statement 以便复用
+                rs.close();
+                pstmt.close();
+
+                pstmt = con.prepareStatement(sqlUpdate);
+                pstmt.setString(1, logname);
+                pstmt.setString(2, mobileID);
+                pstmt.executeUpdate();
+            } else {
+                // B. 如果没有，插入新记录
+                // 关闭资源
+                rs.close();
+                pstmt.close();
+
+                String sqlInsert = "INSERT INTO shoppingForm(logname, goodsId, goodsName, goodsPrice, goodsAmount) VALUES(?, ?, ?, ?, 1)";
+                pstmt = con.prepareStatement(sqlInsert);
+                pstmt.setString(1, logname);
+                pstmt.setString(2, mobileID);
+                pstmt.setString(3, goodsName);
+                pstmt.setFloat(4, goodsPrice);
+                pstmt.executeUpdate();
+            }
+
+            // 4. 处理完成，跳转到购物车页面查看
+            response.sendRedirect("lookShoppingCar.jsp");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            response.getWriter().print("Error: " + e.getMessage());
         } finally {
-            try {
-                con.close();
-            } catch (Exception ee) {
-            }
+            try { if(rs!=null)rs.close(); if(pstmt!=null)pstmt.close(); if(con!=null)con.close(); } catch(Exception e){}
         }
     }
 }

@@ -1,224 +1,99 @@
 <%@ page contentType="text/html;charset=UTF-8" language="java" %>
-<jsp:useBean id="userBean" class="com.design.project_design.Register" scope="request"/>
 <!DOCTYPE html>
 <html>
 <head>
     <%@ include file="head.txt" %>
-    <title>新用户注册</title>
+    <title>注册新账号</title>
     <style>
-        body {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .register-wrapper {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 40px 20px;
-        }
-
-        .register-card {
-            background: #ffffff;
-            width: 100%;
-            max-width: 600px; /* 比登录页宽一点 */
-            padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
-        }
-
-        .card-header {
-            margin-bottom: 30px;
+        .navbar { border-bottom: none; }
+        /* 复用 login.jsp 的样式容器，但稍微宽一点以容纳更多字段 */
+        .login-container {
+            max-width: 400px;
+            margin: 60px auto;
             text-align: center;
         }
-        .card-header h2 {
-            margin: 0;
-            color: #333;
-            font-size: 26px;
-        }
+        .login-container h2 { font-size: 32px; font-weight: 600; margin-bottom: 8px; }
+        .login-container p { color: var(--text-secondary); font-size: 14px; margin-bottom: 30px; }
 
-        .form-row {
-            display: flex;
-            gap: 20px; /* 两个输入框之间的间距 */
-        }
+        .input-group { margin-bottom: 12px; text-align: left; }
+        .input-group label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; margin-left: 2px;}
 
-        .form-col {
-            flex: 1;
-        }
-
-        .input-group {
-            margin-bottom: 20px;
-        }
-
-        .input-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #555;
-            font-weight: 600;
-            font-size: 14px;
-        }
-
-        .input-group label span {
-            color: #ff4d4f;
-            margin-left: 4px;
-        }
-
-        .custom-input {
+        .input-group input {
             width: 100%;
-            padding: 14px;
-            border: 2px solid #eee;
-            border-radius: 10px;
-            background: #f9f9f9;
-            font-size: 14px;
-            transition: all 0.3s;
-            box-sizing: border-box;
+            padding: 12px 14px; border: 1px solid #d2d2d7;
+            border-radius: 8px; box-sizing: border-box; font-size: 15px;
+            background: #fbfbfd; outline: none; transition: all 0.3s;
         }
+        .input-group input:focus { border-color: #0071e3; background: #fff; }
 
-        .custom-input:focus {
-            background: #fff;
-            border-color: #28a745; /* 注册页用绿色系代表通过 */
-            box-shadow: 0 0 0 4px rgba(40, 167, 69, 0.1);
-            outline: none;
-        }
-
-        .submit-btn {
+        .btn-submit {
             width: 100%;
-            padding: 15px;
-            background: linear-gradient(90deg, #28a745, #218838);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: 0.3s;
-            margin-top: 10px;
-            box-shadow: 0 10px 20px rgba(40, 167, 69, 0.2);
+            padding: 14px; background: #1d1d1f; color: white;
+            border: none; border-radius: 8px; font-size: 16px; font-weight: 600;
+            cursor: pointer; margin-top: 20px; transition: background 0.3s;
         }
-
-        .submit-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 15px 25px rgba(40, 167, 69, 0.3);
-        }
+        .btn-submit:hover { background: #333; }
 
         .error-msg {
-            color: #ff4d4f;
-            font-size: 12px;
-            margin-top: 5px;
-            display: none;
-            background: #fff1f0;
-            padding: 5px 10px;
-            border-radius: 4px;
-            border: 1px solid #ffccc7;
+            color: #ee4444; font-size: 13px; margin-bottom: 20px;
+            background: #fff5f5; padding: 10px; border-radius: 6px; text-align: left;
         }
 
-        .back-link {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 14px;
-        }
-        .back-link a {
-            color: #666;
-            text-decoration: none;
-        }
-        .back-link a:hover {
-            color: #000;
-            text-decoration: underline;
-        }
-
-        /* 响应式调整：手机端变成单列 */
-        @media (max-width: 600px) {
-            .form-row {
-                flex-direction: column;
-                gap: 0;
-            }
-        }
+        .footer-link { margin-top: 20px; font-size: 14px; }
+        .footer-link a { color: #0071e3; text-decoration: none; }
     </style>
 </head>
 <body>
 
-<div class="register-wrapper">
-    <div class="register-card">
-        <div class="card-header">
-            <h2>🚀 创建新账号</h2>
-            <p style="color:#999; font-size:14px; margin-top:5px;">几秒钟即可完成注册</p>
+<div class="login-container">
+    <h2>创建账号</h2>
+    <p>注册以开启您的购物之旅</p>
+
+    <%-- 错误提示区域 --%>
+    <%
+        String error = (String)request.getAttribute("registerError");
+        if(error != null) {
+    %>
+    <div class="error-msg">⚠️ <%= error %></div>
+    <% } %>
+
+    <form action="registerServlet" method="post">
+        <div class="input-group">
+            <label>用户名 (登录账号)</label>
+            <input type="text" name="logname" required
+                   value="<%= request.getAttribute("old_logname")==null?"":request.getAttribute("old_logname") %>">
         </div>
 
-        <form action="registerServlet" method="post" onsubmit="return validateForm()">
-            <div class="input-group">
-                <label>用户名 <span>*</span></label>
-                <input type="text" class="custom-input" name="logname" placeholder="字母、数字或下划线" required>
-            </div>
-
-            <div class="form-row">
-                <div class="form-col">
-                    <div class="input-group">
-                        <label>密码 <span>*</span></label>
-                        <input type="password" class="custom-input" name="password" id="pwd" required>
-                    </div>
-                </div>
-                <div class="form-col">
-                    <div class="input-group">
-                        <label>确认密码 <span>*</span></label>
-                        <input type="password" class="custom-input" name="again_password" id="pwd2" required onkeyup="checkPwd()">
-                        <div id="pwdMsg" class="error-msg">❌ 两次输入的密码不一致</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="form-row">
-                <div class="form-col">
-                    <div class="input-group">
-                        <label>真实姓名</label>
-                        <input type="text" class="custom-input" name="realname" placeholder="您的称呼">
-                    </div>
-                </div>
-                <div class="form-col">
-                    <div class="input-group">
-                        <label>联系电话</label>
-                        <input type="text" class="custom-input" name="phone" placeholder="11位手机号">
-                    </div>
-                </div>
-            </div>
-
-            <div class="input-group">
-                <label>收货地址</label>
-                <input type="text" class="custom-input" name="address" placeholder="用于接收快递">
-            </div>
-
-            <button type="submit" class="submit-btn">立即注册</button>
-        </form>
-
-        <div style="margin-top: 20px; text-align: center;">
-            <jsp:getProperty name="userBean" property="backNews"/>
+        <div class="input-group">
+            <label>设置密码</label>
+            <input type="password" name="password" required>
         </div>
 
-        <div class="back-link">
-            <a href="login.jsp">已有账号？返回登录</a>
+        <div class="input-group">
+            <label>真实姓名</label>
+            <input type="text" name="realname"
+                   value="<%= request.getAttribute("old_realname")==null?"":request.getAttribute("old_realname") %>">
         </div>
+
+        <div class="input-group">
+            <label>联系电话</label>
+            <input type="text" name="phone"
+                   value="<%= request.getAttribute("old_phone")==null?"":request.getAttribute("old_phone") %>">
+        </div>
+
+        <div class="input-group">
+            <label>收货地址</label>
+            <input type="text" name="address"
+                   value="<%= request.getAttribute("old_address")==null?"":request.getAttribute("old_address") %>">
+        </div>
+
+        <button type="submit" class="btn-submit">立即注册</button>
+    </form>
+
+    <div class="footer-link">
+        已有账号？ <a href="login.jsp">直接登录</a>
     </div>
 </div>
-
-<script>
-    function checkPwd() {
-        var p1 = document.getElementById("pwd").value;
-        var p2 = document.getElementById("pwd2").value;
-        var msg = document.getElementById("pwdMsg");
-        if(p1 && p2 && p1 != p2) {
-            msg.style.display = "block";
-            return false;
-        } else {
-            msg.style.display = "none";
-            return true;
-        }
-    }
-    function validateForm() {
-        return checkPwd();
-    }
-</script>
 
 </body>
 </html>

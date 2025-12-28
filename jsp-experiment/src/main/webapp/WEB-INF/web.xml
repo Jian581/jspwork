@@ -76,4 +76,20 @@
         <servlet-name>exitServlet</servlet-name>
         <url-pattern>/ch10/exitServlet</url-pattern>
     </servlet-mapping>
+    <servlet>
+        <servlet-name>commentServlet</servlet-name>
+        <servlet-class>com.design.project_design.HandleComment</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>commentServlet</servlet-name>
+        <url-pattern>/ch10/commentServlet</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>chatServlet</servlet-name>
+        <servlet-class>com.design.project_design.HandleChat</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>chatServlet</servlet-name>
+        <url-pattern>/ch10/chatServlet</url-pattern>
+    </servlet-mapping>
 </web-app>

@@ -3,40 +3,43 @@
 <html>
 <head>
     <%@ include file="head.txt" %>
-    <title>小蜜蜂手机 - 首页</title>
+    <title>小蜜蜂手机 | 极简选物</title>
+    <style>
+        .hero {
+            padding: 100px 0;
+            text-align: center;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .hero h1 { font-size: 56px; font-weight: 600; margin-bottom: 24px; letter-spacing: -1.5px; }
+        .hero p { color: var(--text-secondary); font-size: 21px; margin-bottom: 40px; }
+
+        .section-label {
+            font-size: 12px; font-weight: 700; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; display: block;
+        }
+    </style>
 </head>
 <body>
 
-<div class="container">
-    <jsp:include page="banner.jsp" />
-
-    <div style="display: flex; justify-content: space-between; margin-bottom: 40px; padding: 0 20px;">
-        <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-size:24px; color:var(--primary-color);">🚀</span>
-            <div><b>极速发货</b><div style="font-size:12px; color:#888;">24小时内发货</div></div>
-        </div>
-        <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-size:24px; color:var(--primary-color);">🛡️</span>
-            <div><b>官方正品</b><div style="font-size:12px; color:#888;">假一赔十保证</div></div>
-        </div>
-        <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-size:24px; color:var(--primary-color);">💎</span>
-            <div><b>售后无忧</b><div style="font-size:12px; color:#888;">7天无理由退换</div></div>
-        </div>
-        <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-size:24px; color:var(--primary-color);">💳</span>
-            <div><b>分期免息</b><div style="font-size:12px; color:#888;">最高24期免息</div></div>
-        </div>
+<div class="hero">
+    <span class="section-label">New Arrival</span>
+    <h1>简单的科技，<br>不简单的体验。</h1>
+    <p>我们筛选全球优秀的移动设备，只为提供纯粹的数字生活。</p>
+    <div style="display:flex; gap:16px; justify-content:center;">
+        <a href="lookMobile.jsp" class="btn btn-primary">立即选购</a>
+        <a href="searchMobile.jsp" class="btn btn-outline">搜索型号</a>
     </div>
-
-    <jsp:include page="hotGoods.jsp" />
-
 </div>
 
-<div class="footer">
-    <div style="font-weight: bold; font-size: 18px; margin-bottom: 10px;">🐝 小蜜蜂手机商城</div>
-    <p>Copyright © 2025 Mobile Shop System. All Rights Reserved.</p>
-    <p style="font-size: 12px; opacity: 0.6;">Designed for Java JSP Course</p>
+<div class="container">
+    <span class="section-label">Curated Collection</span>
+    <h2 style="font-size: 32px; margin-bottom: 40px;">精选推荐</h2>
+    <jsp:include page="hotGoods.jsp" />
+</div>
+
+<div class="footer" style="padding: 100px 0; border-top: 1px solid #eee; text-align: center;">
+    <p style="color: #888; font-size: 14px;">&copy; 2025 Mobile Shop System. 让科技回归简约。</p>
 </div>
 
 </body>

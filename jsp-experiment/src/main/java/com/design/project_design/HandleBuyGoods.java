@@ -1,110 +1,99 @@
 package com.design.project_design;
-import javax.servlet.RequestDispatcher;
-import javax.servlet.ServletConfig;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-// 注意：不要改 java.sql.* 或 javax.naming.*，只改 servlet 相关的
 
-
+import javax.servlet.*;
+import javax.servlet.http.*;
+import java.io.*;
+import java.sql.*;
 import javax.naming.Context;
 import javax.naming.InitialContext;
-import javax.servlet.http.HttpSession;
 import javax.sql.DataSource;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 
 public class HandleBuyGoods extends HttpServlet {
-    public void init(ServletConfig config) throws ServletException {
-        super.init(config);
-    }
-
-    public void service(HttpServletRequest request,
-                        HttpServletResponse response)
+    public void service(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         request.setCharacterEncoding("utf-8");
-        String logname = request.getParameter("logname");
-        Connection con = null;
-        PreparedStatement pre = null; //预处理语句
-        ResultSet rs;
-        Login loginBean = null;
-        HttpSession session = request.getSession(true);
-        try {
-            loginBean = (Login) session.getAttribute("loginBean");
-            if (loginBean == null) {
-                response.sendRedirect("login.jsp"); //重定向到登录页面
-                return;
-            } else {
-                boolean b = loginBean.getLogname() == null ||
-                        loginBean.getLogname().isEmpty();
-                if (b) {
-                    response.sendRedirect("login.jsp"); //重定向到登录页面
-                    return;
-                }
-            }
-        } catch (Exception exp) {
-            response.sendRedirect("login.jsp"); //重定向到登录页面
+
+        HttpSession session = request.getSession();
+        Login loginBean = (Login) session.getAttribute("loginBean");
+        if (loginBean == null || loginBean.getLogname() == null) {
+            response.sendRedirect("login.jsp");
             return;
         }
+
+        String logname = loginBean.getLogname();
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+
         try {
             Context context = new InitialContext();
             Context contextNeeded = (Context) context.lookup("java:comp/env");
-            DataSource ds =
-                    (DataSource) contextNeeded.lookup("mobileConn"); //获得连接池
-            con = ds.getConnection(); //使用连接池中的连接
-            String querySQL =
-                    "select * from shoppingForm where logname = ?"; //购物车
-            String insertSQL = "insert into orderForm values(?,?,?)"; //订单表
-            String deleteSQL = "delete from shoppingForm where logname = ?";
-            pre = con.prepareStatement(querySQL);
-            pre.setString(1, logname);
-            rs = pre.executeQuery(); //查询购物车
-            StringBuffer buffer = new StringBuffer();
-            float sum = 0;
-            boolean canCreateForm = false; //是否可以产生订单
+            DataSource ds = (DataSource) contextNeeded.lookup("mobileConn");
+            con = ds.getConnection();
+
+            // 【关键】开启事务，确保“生成订单”和“清空购物车”原子性操作
+            con.setAutoCommit(false);
+
+            // 1. 查询购物车内容，拼接订单详情字符串
+            String sqlSelect = "SELECT goodsName, goodsPrice, goodsAmount FROM shoppingForm WHERE logname = ?";
+            pstmt = con.prepareStatement(sqlSelect);
+            pstmt.setString(1, logname);
+            rs = pstmt.executeQuery();
+
+            StringBuilder orderDetail = new StringBuilder();
+            orderDetail.append("订单详情：\n");
+            float total = 0;
+            boolean hasItems = false;
+
             while (rs.next()) {
-                canCreateForm = true;
-                String goodsId = rs.getString(1);
-                logname = rs.getString(2);
-                String goodsName = rs.getString(3);
-                float price = rs.getFloat(4);
-                int amount = rs.getInt(5);
-                sum += price * amount;
-                buffer.append("<br>商品id:" + goodsId + ",名称:" + goodsName +
-                        "单价" + price + "数量" + amount);
+                hasItems = true;
+                String name = rs.getString(1);
+                float price = rs.getFloat(2);
+                int amount = rs.getInt(3);
+                float subTotal = price * amount;
+
+                total += subTotal;
+                orderDetail.append(name)
+                        .append(" (¥").append(price).append(") x ")
+                        .append(amount).append("\n");
             }
-            if (!canCreateForm) {
-                response.setContentType("text/html;charset=utf-8");
-                PrintWriter out = response.getWriter();
-                out.println("<html><body>");
-                out.println("<h2>" + logname + "请先选择商品添加到购物车");
-                out.println("<br><a href=index.jsp>主页</a></h2>");
-                out.println("</body></html>");
+            orderDetail.append("----------------\n总金额：¥").append(total);
+            rs.close();
+            pstmt.close();
+
+            if (!hasItems) {
+                con.rollback(); // 购物车是空的，回滚
+                response.sendRedirect("lookShoppingCar.jsp");
                 return;
             }
-            String strSum = String.format("%10.2f", sum);
-            buffer.append("<br>" + logname + "<br>购物车的商品总价:" + strSum);
-            pre = con.prepareStatement(insertSQL);
-            pre.setInt(1, 0); //订单号会自动增加
-            pre.setString(2, logname);
-            pre.setString(3, new String(buffer));
-            pre.executeUpdate(); //添加到订单表
-            pre = con.prepareStatement(deleteSQL);
-            pre.setString(1, logname);
-            pre.executeUpdate(); //删除logname的购物车中货物
-            con.close(); //连接放回连接池
-            response.sendRedirect("lookOrderForm.jsp"); //查看订单
+
+            // 2. 插入订单表
+            String sqlOrder = "INSERT INTO orderForm(logname, mess) VALUES(?, ?)";
+            pstmt = con.prepareStatement(sqlOrder);
+            pstmt.setString(1, logname);
+            pstmt.setString(2, orderDetail.toString());
+            pstmt.executeUpdate();
+            pstmt.close();
+
+            // 3. 清空该用户的购物车
+            String sqlDelete = "DELETE FROM shoppingForm WHERE logname = ?";
+            pstmt = con.prepareStatement(sqlDelete);
+            pstmt.setString(1, logname);
+            pstmt.executeUpdate();
+
+            // 4. 提交事务
+            con.commit();
+
+            // 下单成功，跳转到我的订单页
+            response.sendRedirect("lookOrderForm.jsp");
+
         } catch (Exception e) {
-            response.getWriter().print("" + e);
+            try { if(con!=null) con.rollback(); } catch(Exception rollbackEx){} // 出错回滚
+            response.getWriter().print("下单失败：" + e.getMessage());
+            e.printStackTrace();
         } finally {
-            try {
-                con.close();
-            } catch (Exception ee) {
-            }
+            try { if(con!=null) con.setAutoCommit(true); } catch(Exception e){} // 恢复默认设置
+            try { if(rs!=null)rs.close(); if(pstmt!=null)pstmt.close(); if(con!=null)con.close(); } catch(Exception e){}
         }
     }
 }

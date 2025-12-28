@@ -19,6 +19,6 @@ public class HandleExit  extends HttpServlet {
             throws ServletException, IOException {
         HttpSession session = request.getSession(true);
         session.invalidate(); //销毁用户的session对象
-        response.sendRedirect("index.jsp"); //返回主页
+        response.sendRedirect("login.jsp"); //返回主页
     }
 }

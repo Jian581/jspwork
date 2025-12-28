@@ -29,6 +29,7 @@ create table mobileForm(
 );
 
 create table shoppingForm(
+                             cartId int not null auto_increment primary key,
                              goodsId char(30) not null,
                              logname char(30) not null,
                              goodsName varchar(50),

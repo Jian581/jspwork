@@ -1,16 +1,14 @@
 package com.design.project_design;
 
+import javax.naming.Context;
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
 import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-// 注意：不要改 java.sql.* 或 javax.naming.*，只改 servlet 相关的
-
-import javax.naming.Context;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.sql.Connection;
@@ -22,86 +20,88 @@ public class HandleRegister extends HttpServlet {
         super.init(config);
     }
 
-    public void service(HttpServletRequest request,
-                        HttpServletResponse response)
+    public void service(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         request.setCharacterEncoding("utf-8");
-        response.setContentType("text/html;charset=UTF-8"); // 补充响应编码，避免乱码
 
-        Connection con = null;
-        PreparedStatement sql = null;
-        Register userBean = new Register(); //创建bean
-        request.setAttribute("userBean", userBean);
-        String logname = request.getParameter("logname").trim();
-        String password = request.getParameter("password").trim();
-        String again_password = request.getParameter("again_password").trim();
-        String phone = request.getParameter("phone").trim();
-        String address = request.getParameter("address").trim();
-        String realname = request.getParameter("realname").trim();
-        if (!password.equals(again_password)) {
-            userBean.setBackNews("两次密码不同,注册失败");
-            RequestDispatcher dispatcher =
-                    request.getRequestDispatcher("inputRegisterMess.jsp");
-            dispatcher.forward(request, response); //转发
+        // 获取表单数据
+        String logname = request.getParameter("logname");
+        String password = request.getParameter("password");
+        String realname = request.getParameter("realname");
+        String phone = request.getParameter("phone");
+        String address = request.getParameter("address");
+
+        // 简单的数据校验
+        if (logname == null || logname.trim().length() == 0 ||
+                password == null || password.trim().length() == 0) {
+            fail(request, response, "用户名或密码不能为空");
             return;
         }
-        boolean isID = true;
-        if (logname.isEmpty()) {
-            isID = false;
-        } else {
-            for (int i = 0; i < logname.length(); i++) {
-                char c = logname.charAt(i);
-                if (!Character.isLetterOrDigit(c) && c != '_')
-                    isID = false;
-            }
-        }
-        boolean boo = !logname.isEmpty() && !password.isEmpty() && isID;
-        String backNews = "";
+
+        // 密码加密
+        String encryptedPassword = Encrypt.encrypt(password.trim(), "javajsp");
+
+        Connection con = null;
+        PreparedStatement pstmt = null;
+
         try {
             Context context = new InitialContext();
-            Context contextNeeded =
-                    (Context) context.lookup("java:comp/env");
-            DataSource ds =
-                    (DataSource) contextNeeded.lookup("mobileConn"); //获得连接池
-            con = ds.getConnection(); //使用连接池中的连接
-            String insertCondition = "INSERT INTO user VALUES (?,?,?,?,?)";
-            sql = con.prepareStatement(insertCondition);
-            if (boo) {
-                sql.setString(1, logname);
-                password =
-                        Encrypt.encrypt(password, "javajsp"); //给用户密码加密
-                sql.setString(2, password);
-                sql.setString(3, phone);
-                sql.setString(4, address);
-                sql.setString(5, realname);
-                int m = sql.executeUpdate();
-                if (m != 0) {
-                    backNews = "注册成功";
-                    userBean.setBackNews(backNews);
-                    userBean.setLogname(logname);
-                    userBean.setPhone(phone);
-                    userBean.setAddress(address);
-                    userBean.setRealname(realname);
-                }
+            Context contextNeeded = (Context) context.lookup("java:comp/env");
+            DataSource ds = (DataSource) contextNeeded.lookup("mobileConn");
+            con = ds.getConnection();
+
+            // 1. 使用 PreparedStatement 插入数据 (防止SQL注入)
+            String insertSQL = "insert into user(logname, password, realname, phone, address) values(?,?,?,?,?)";
+            pstmt = con.prepareStatement(insertSQL);
+            pstmt.setString(1, logname.trim());
+            pstmt.setString(2, encryptedPassword);
+            pstmt.setString(3, realname);
+            pstmt.setString(4, phone);
+            pstmt.setString(5, address);
+
+            int result = pstmt.executeUpdate();
+            if (result > 0) {
+                // 2. 注册成功 -> 重定向到登录页面 (带上成功消息)
+                // 也可以把成功消息存入 session
+                request.getSession().setAttribute("loginBean", new Login()); // 初始化bean防止空指针
+                Login loginBean = (Login) request.getSession().getAttribute("loginBean");
+                loginBean.setBackNews("注册成功，请直接登录");
+
+                response.sendRedirect("login.jsp");
             } else {
-                backNews = "信息填写不完整或名字中有非法字符";
-                userBean.setBackNews(backNews);
+                fail(request, response, "注册失败，请重试");
             }
-            con.close(); //连接返回连接池
+
         } catch (SQLException exp) {
-            backNews = "该会员名已被使用,请您更换名字" + exp;
-            userBean.setBackNews(backNews);
+            // 捕获主键冲突（用户名重复）
+            if (exp.getErrorCode() == 1062 || exp.getMessage().contains("Duplicate")) {
+                fail(request, response, "该用户名已被使用，请更换一个");
+            } else {
+                fail(request, response, "数据库错误：" + exp.getMessage());
+            }
         } catch (NamingException exp) {
-            backNews = "没有设置连接池" + exp;
-            userBean.setBackNews(backNews);
+            fail(request, response, "数据源配置错误：" + exp.getMessage());
         } finally {
             try {
-                con.close();
-            } catch (Exception ee) {
+                if (pstmt != null) pstmt.close();
+                if (con != null) con.close();
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         }
-        RequestDispatcher dispatcher =
-                request.getRequestDispatcher("inputRegisterMess.jsp"); //转发
+    }
+
+    // 统一的错误处理方法 (MVC模式：转发回JSP显示)
+    private void fail(HttpServletRequest request, HttpServletResponse response, String msg)
+            throws ServletException, IOException {
+        request.setAttribute("registerError", msg);
+        // 回填用户输入的数据，提升体验 (密码除外)
+        request.setAttribute("old_logname", request.getParameter("logname"));
+        request.setAttribute("old_realname", request.getParameter("realname"));
+        request.setAttribute("old_phone", request.getParameter("phone"));
+        request.setAttribute("old_address", request.getParameter("address"));
+
+        RequestDispatcher dispatcher = request.getRequestDispatcher("inputRegisterMess.jsp");
         dispatcher.forward(request, response);
     }
 }
